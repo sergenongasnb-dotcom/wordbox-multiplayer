@@ -6,3 +6,6 @@
     "@vercel/node": "^2.9.11"
   }
 }
+{
+  "type": "module"
+}
