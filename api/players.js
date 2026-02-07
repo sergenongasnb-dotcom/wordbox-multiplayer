@@ -1,12 +1,7 @@
 let games = {};
 
-export default async function handler(req, res) {
-    // CORS
+export default function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
     
     if (req.method === 'POST') {
         try {
@@ -28,18 +23,20 @@ export default async function handler(req, res) {
             
             game.players[playerId] = {
                 id: playerId,
-                isPlayer1,
-                joinedAt: new Date().toISOString()
+                isPlayer1: isPlayer1
             };
             
-            return res.status(200).json({
-                playerId,
-                isPlayer1,
-                players: game.players,
-                gameState: game.gameState
+            return res.json({
+                success: true,
+                playerId: playerId,
+                isPlayer1: isPlayer1,
+                players: game.players
             });
+            
         } catch (error) {
             return res.status(500).json({ error: 'Erreur serveur' });
         }
     }
+    
+    return res.status(405).json({ error: 'Méthode non autorisée' });
 }
