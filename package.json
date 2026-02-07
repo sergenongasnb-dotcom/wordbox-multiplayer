@@ -1,0 +1,8 @@
+{
+  "name": "wordbox-multiplayer",
+  "version": "1.0.0",
+  "dependencies": {},
+  "devDependencies": {
+    "@vercel/node": "^2.9.11"
+  }
+}
