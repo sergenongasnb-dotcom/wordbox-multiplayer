@@ -1,14 +1,35 @@
-// Stockage en mémoire (pour le prototype)
 let games = {};
 
-export default async function handler(req, res) {
-    // CORS
+export default function handler(req, res) {
+    // Autoriser CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
+    }
+    
+    if (req.method === 'POST') {
+        // Créer une nouvelle partie
+        const gameId = 'WB_' + Math.random().toString(36).substr(2, 6).toUpperCase();
+        
+        games[gameId] = {
+            gameId: gameId,
+            players: {},
+            gameState: {
+                turn: 'player1',
+                scores: { player1: 0, player2: 0 },
+                foundWords: { player1: [], player2: [] },
+                gameActive: false,
+                grid: generateGrid()
+            }
+        };
+        
+        return res.json({ 
+            success: true, 
+            gameId: gameId 
+        });
     }
     
     if (req.method === 'GET') {
@@ -18,43 +39,20 @@ export default async function handler(req, res) {
             return res.status(404).json({ error: 'Partie non trouvée' });
         }
         
-        return res.status(200).json(games[gameId]);
+        return res.json(games[gameId].gameState);
     }
     
-    if (req.method === 'POST') {
-        // Créer une nouvelle partie
-        const gameId = 'WB_' + Math.random().toString(36).substr(2, 6).toUpperCase();
-        
-        games[gameId] = {
-            gameId,
-            players: {},
-            gameState: {
-                grid: generateGrid(),
-                turn: 'player1',
-                scores: { player1: 0, player2: 0 },
-                foundWords: { player1: [], player2: [] },
-                timeLeft: 120,
-                turnTimeLeft: 30,
-                gameActive: false,
-                createdAt: new Date().toISOString()
-            }
-        };
-        
-        return res.status(200).json({ gameId });
-    }
+    return res.status(405).json({ error: 'Méthode non autorisée' });
 }
 
 function generateGrid() {
-    // Générer une grille 5x5
-    const grid = [];
     const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const grid = [];
     
     for (let i = 0; i < 5; i++) {
         grid[i] = [];
         for (let j = 0; j < 5; j++) {
-            // Fréquence française approximative
-            const letterPool = 'AAAAAEEEEEIIIIIOOOOONNNNRRRRSSSSTTTTLLLLUUUUDDDDMMMPPPGGGCCBBFFHHVVJQKWXYZ';
-            grid[i][j] = letterPool[Math.floor(Math.random() * letterPool.length)];
+            grid[i][j] = letters[Math.floor(Math.random() * letters.length)];
         }
     }
     
