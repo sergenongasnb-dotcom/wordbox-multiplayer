@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WordBox 2 Joueurs</title>
+    <style>
+        /* COLLE TOUT TON CSS ICI */
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: sans-serif; }
+        body { background: #1a202c; min-height: 100vh; padding: 20px; }
+        .game-container { background: white; border-radius: 20px; padding: 30px; max-width: 900px; margin: auto; }
+        h1 { color: #4a5568; text-align: center; margin-bottom: 20px; }
+        /* ... AJOUTE TOUT LE RESTE DE TON CSS ORIGINAL ... */
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <!-- Écran Lobby -->
+        <div id="lobby">
+            <h1>WORD BOX 2 JOUEURS</h1>
+            <button onclick="createGame()" style="padding: 15px; margin: 10px; font-size: 18px;">
+                Créer une partie
+            </button>
+            <br>
+            <input id="gameCode" placeholder="Code de partie" style="padding: 10px; font-size: 16px;">
+            <button onclick="joinGame()" style="padding: 15px; margin: 10px; font-size: 18px;">
+                Rejoindre
+            </button>
+        </div>
+        
+        <!-- Écran Jeu -->
+        <div id="gameScreen" style="display: none;">
+            <h1>WORD BOX</h1>
+            <div style="display: flex; justify-content: space-between; margin: 20px 0;">
+                <div id="player1">Joueur 1: <span id="score1">0</span></div>
+                <div id="timer">⏱️ <span id="time">02:00</span></div>
+                <div id="player2">Joueur 2: <span id="score2">0</span></div>
+            </div>
+            
+            <div id="currentWord" style="font-size: 24px; text-align: center; margin: 20px; min-height: 40px;">
+                Glissez sur les lettres...
+            </div>
+            
+            <!-- Grille 5x5 -->
+            <div id="grid" style="
+                display: grid;
+                grid-template-columns: repeat(5, 60px);
+                grid-gap: 10px;
+                justify-content: center;
+                margin: 20px;
+            ">
+                <!-- Les lettres seront ajoutées par JavaScript -->
+            </div>
+            
+            <div style="text-align: center; margin-top: 20px;">
+                <button onclick="submitWord()" style="padding: 15px 30px; font-size: 18px;">
+                    Valider le mot
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API simple
+        const API_URL = '/api/game';
+        let gameId = '';
+        let playerNumber = 1;
+        let selectedLetters = [];
+        
+        async function createGame() {
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'create' })
+            });
+            const data = await res.json();
+            
+            if (data.gameId) {
+                gameId = data.gameId;
+                alert('Partie créée! Code: ' + gameId);
+                joinGame();
+            }
+        }
+        
+        async function joinGame() {
+            const code = document.getElementById('gameCode').value || gameId;
+            if (!code) return alert('Entrez un code');
+            
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'join', gameId: code })
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                playerNumber = data.playerNumber;
+                alert('Vous êtes Joueur ' + playerNumber);
+                startGame();
+            } else {
+                alert(data.error);
+            }
+        }
+        
+        function startGame() {
+            document.getElementById('lobby').style.display = 'none';
+            document.getElementById('gameScreen').style.display = 'block';
+            
+            // Créer la grille
+            createGrid();
+            startTimer();
+        }
+        
+        function createGrid() {
+            const grid = document.getElementById('grid');
+            grid.innerHTML = '';
+            
+            const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            
+            for (let i = 0; i < 25; i++) {
+                const cell = document.createElement('div');
+                cell.style.cssText = `
+                    width: 60px;
+                    height: 60px;
+                    background: white;
+                    border: 2px solid #cbd5e0;
+                    border-radius: 10px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 24px;
+                    font-weight: bold;
+                    cursor: pointer;
+                    user-select: none;
+                `;
+                cell.textContent = letters[Math.floor(Math.random() * letters.length)];
+                cell.onclick = () => selectLetter(cell);
+                grid.appendChild(cell);
+            }
+        }
+        
+        function selectLetter(cell) {
+            if (selectedLetters.includes(cell)) {
+                cell.style.background = 'white';
+                selectedLetters = selectedLetters.filter(l => l !== cell);
+            } else {
+                cell.style.background = '#bee3f8';
+                selectedLetters.push(cell);
+            }
+            updateCurrentWord();
+        }
+        
+        function updateCurrentWord() {
+            const word = selectedLetters.map(cell => cell.textContent).join('');
+            document.getElementById('currentWord').textContent = word || 'Glissez sur les lettres...';
+        }
+        
+        function submitWord() {
+            const word = selectedLetters.map(cell => cell.textContent).join('');
+            if (word.length < 3) return alert('Minimum 3 lettres');
+            alert('Mot soumis: ' + word);
+            selectedLetters.forEach(cell => cell.style.background = '#c6f6d5');
+            selectedLetters = [];
+            updateCurrentWord();
+        }
+        
+        function startTimer() {
+            let time = 120;
+            const timer = setInterval(() => {
+                const minutes = Math.floor(time / 60);
+                const seconds = time % 60;
+                document.getElementById('time').textContent = 
+                    `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+                
+                if (time <= 0) {
+                    clearInterval(timer);
+                    alert('Temps écoulé!');
+                }
+                time--;
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
