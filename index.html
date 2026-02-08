@@ -208,6 +208,14 @@ function startGame() {
     document.addEventListener('mouseup', endDrag);
     document.addEventListener('touchend', endDrag);
 }
+        function submitWord() {
+    if (selected.length >= 3) {
+        const word = selected.map(idx => grid[idx]).join('');
+        alert('Mot: ' + word);
+        selected = [];
+        updateGrid();
+    }
+}
     </script>
 </body>
 </html>
