@@ -66,12 +66,16 @@ export default function handler(req, res) {
                 }
                 
                 return res.json({
-                    success: true,
-                    playerId: newPlayerId,
-                    playerNumber: playerNum,
-                    grid: game.grid,
-                    gameActive: game.gameActive
-                });
+                success: true,
+                playerId: newPlayerId,
+                playerNumber: playerNum,
+                grid: game.grid,
+                gameState: {  // <-- CHANGÉ de gameActive à gameState
+                    gameActive: game.gameActive,
+                    scores: game.scores,
+                    currentTurn: game.currentTurn
+                }
+            });
             }
             
             // VALIDER un mot
