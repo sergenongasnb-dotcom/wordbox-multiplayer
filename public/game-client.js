@@ -98,3 +98,16 @@ function startGame() {
     // Initialiser la grille
     initGrid();
 }
+
+function initGrid() {
+    const grid = document.getElementById('grid-container');
+    grid.innerHTML = '<canvas id="selection-canvas"></canvas>';
+    
+    // Grille 5x5 simple
+    for (let i = 0; i < 25; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'letter-cell';
+        cell.textContent = String.fromCharCode(65 + Math.floor(Math.random() * 26));
+        grid.appendChild(cell);
+    }
+}
