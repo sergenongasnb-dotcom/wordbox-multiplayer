@@ -119,3 +119,21 @@ function startGame() {
     document.getElementById('lobby-screen').classList.remove('active');
     document.getElementById('game-screen').classList.add('active');
 }
+
+function getCellFromEvent(e) {
+    let target;
+    
+    if (e.type.includes('touch')) {
+        e.preventDefault();
+        const touch = e.touches[0] || e.changedTouches[0];
+        target = document.elementFromPoint(touch.clientX, touch.clientY);
+    } else {
+        target = e.target;
+    }
+    
+    while (target && !target.classList.contains('letter-cell') && target !== document.body) {
+        target = target.parentElement;
+    }
+    
+    return target && target.classList.contains('letter-cell') ? target : null;
+}
