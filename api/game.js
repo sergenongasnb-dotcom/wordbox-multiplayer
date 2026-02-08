@@ -61,3 +61,20 @@ export default async function handler(req, res) {
     
     return res.status(405).json({ error: 'Méthode non autorisée' });
 }
+
+if (action === 'check') {
+    const { gameId } = req.query;
+    
+    if (!gameId || !games[gameId]) {
+        return res.json({ ready: false });
+    }
+    
+    const game = games[gameId];
+    const playerCount = Object.keys(game.players).length;
+    
+    // Prêt si 2 joueurs
+    return res.json({ 
+        ready: playerCount === 2,
+        players: game.players 
+    });
+}
