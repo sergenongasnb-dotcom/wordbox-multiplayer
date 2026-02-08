@@ -1,113 +1,65 @@
-window.createGame = async function() {
-    const res = await fetch('/api/game?action=create', { method: 'POST' });
-    const data = await res.json();
-    
-    if (data.gameId) {
-        localStorage.setItem('gameCode', data.gameId);
-        alert('Partie: ' + data.gameId);
-        joinGame(data.gameId);
-    }
-};
+let currentGame = null;
 
-window.joinGame = async function(code) {
-    const gameId = code || document.getElementById('game-code-input').value;
-    
-    const res = await fetch('/api/game?action=join', {
+window.createGame = async function() {
+    const res = await fetch('/api/game', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gameId })
+        body: JSON.stringify({ action: 'create' })
     });
     
     const data = await res.json();
     
     if (data.success) {
-        alert('Joueur ' + (data.isPlayer1 ? '1' : '2'));
-        startGame();
-    } else {
-        alert(data.error);
-    }
-};
-
-let gameId = '';
-let playerId = '';
-let isPlayer1 = false;
-let checkInterval = null;
-
-window.createGame = async function() {
-    const res = await fetch('/api/game?action=create', { method: 'POST' });
-    const data = await res.json();
-    
-    if (data.gameId) {
-        gameId = data.gameId;
-        localStorage.setItem('gameCode', gameId);
-        document.getElementById('code-display').textContent = gameId;
-        document.getElementById('game-code').style.display = 'block';
+        currentGame = data.gameId;
+        alert('🎮 Code: ' + currentGame);
         
-        // Auto-join
-        joinGame(gameId);
+        // Auto-join comme joueur 1
+        joinGame(currentGame);
     }
 };
 
 window.joinGame = async function() {
-    const inputCode = document.getElementById('game-code-input').value;
-    gameId = inputCode || gameId;
+    const gameId = currentGame || document.getElementById('game-code-input').value;
     
-    if (!gameId) {
-        alert('Entre un code');
-        return;
-    }
-    
-    const res = await fetch('/api/game?action=join', {
+    const res = await fetch('/api/game', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gameId })
+        body: JSON.stringify({ 
+            action: 'join',
+            gameId: gameId 
+        })
     });
     
     const data = await res.json();
     
     if (data.success) {
-        playerId = data.playerId;
-        isPlayer1 = data.isPlayer1;
+        alert('✅ Vous êtes Joueur ' + data.playerNumber);
+        currentGame = gameId;
         
-        alert('Vous êtes Joueur ' + (isPlayer1 ? '1' : '2'));
-        
-        // Démarrer la vérification
-        startChecking();
+        // Vérifier si 2 joueurs
+        if (data.players === 2) {
+            setTimeout(() => {
+                document.getElementById('lobby-screen').classList.remove('active');
+                document.getElementById('game-screen').classList.add('active');
+            }, 1000);
+        } else {
+            // Attendre le 2ème joueur
+            waitForSecondPlayer();
+        }
     } else {
-        alert(data.error);
+        alert('❌ ' + data.error);
     }
 };
 
-function startChecking() {
-    // Vérifier toutes les 2 secondes
-    checkInterval = setInterval(async () => {
-        const res = await fetch(`/api/game?action=check&gameId=${gameId}`);
+function waitForSecondPlayer() {
+    const check = setInterval(async () => {
+        const res = await fetch(`/api/game?gameId=${currentGame}`);
         const data = await res.json();
         
-        if (data.ready) {
-            clearInterval(checkInterval);
-            startGame();
+        if (data.players && data.players.length === 2) {
+            clearInterval(check);
+            document.getElementById('lobby-screen').classList.remove('active');
+            document.getElementById('game-screen').classList.add('active');
         }
     }, 2000);
-}
-
-function startGame() {
-    document.getElementById('lobby-screen').classList.remove('active');
-    document.getElementById('game-screen').classList.add('active');
-    
-    // Initialiser la grille
-    initGrid();
-}
-
-function initGrid() {
-    const grid = document.getElementById('grid-container');
-    grid.innerHTML = '<canvas id="selection-canvas"></canvas>';
-    
-    // Grille 5x5 simple
-    for (let i = 0; i < 25; i++) {
-        const cell = document.createElement('div');
-        cell.className = 'letter-cell';
-        cell.textContent = String.fromCharCode(65 + Math.floor(Math.random() * 26));
-        grid.appendChild(cell);
-    }
 }
