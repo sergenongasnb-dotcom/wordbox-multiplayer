@@ -1,13 +1,21 @@
-let games = {};
+const games = {};
 
 export default function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
+    
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
     
     if (req.method === 'POST') {
         try {
             const { gameId } = req.body;
             
-            if (!gameId || !games[gameId]) {
+            if (!gameId) {
+                return res.status(400).json({ error: 'Code requis' });
+            }
+            
+            if (!games[gameId]) {
                 return res.status(404).json({ error: 'Partie non trouvée' });
             }
             
@@ -23,8 +31,11 @@ export default function handler(req, res) {
             
             game.players[playerId] = {
                 id: playerId,
-                isPlayer1: isPlayer1
+                isPlayer1: isPlayer1,
+                joinedAt: Date.now()
             };
+            
+            console.log('Joueur ajouté:', playerId, 'à', gameId);
             
             return res.json({
                 success: true,
@@ -34,6 +45,7 @@ export default function handler(req, res) {
             });
             
         } catch (error) {
+            console.error('Erreur:', error);
             return res.status(500).json({ error: 'Erreur serveur' });
         }
     }
