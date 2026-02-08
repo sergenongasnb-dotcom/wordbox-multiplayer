@@ -1,47 +1,62 @@
-// DÉBUT DU FICHIER - LIGNE 1
 const games = {};
 
-export default function handler(req, res) {
+export default async function handler(req, res) {
     // CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    
+    const { action } = req.query;
     
     if (req.method === 'POST') {
-        const gameId = 'WB_' + Math.random().toString(36).substr(2, 6).toUpperCase();
-        
-        games[gameId] = {
-            gameId: gameId,
-            players: {},
-            gameState: {
-                turn: 'player1',
-                scores: { player1: 0, player2: 0 },
-                foundWords: { player1: [], player2: [] },
-                gameActive: false
-            },
-            createdAt: Date.now()
-        };
-        
-        console.log('Partie créée:', gameId);
-        
-        return res.json({ 
-            success: true, 
-            gameId: gameId 
-        });
-    }
-    
-    if (req.method === 'GET') {
-        const { gameId } = req.query;
-        
-        if (!gameId || !games[gameId]) {
-            return res.status(404).json({ error: 'Partie non trouvée' });
+        try {
+            const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+            
+            if (action === 'create') {
+                // CRÉER une partie
+                const gameId = 'WB' + Math.random().toString(36).substr(2, 6).toUpperCase();
+                
+                games[gameId] = {
+                    gameId,
+                    players: {},
+                    gameState: { scores: { p1: 0, p2: 0 }, turn: 'p1' }
+                };
+                
+                return res.json({ success: true, gameId });
+            }
+            
+            if (action === 'join') {
+                // REJOINDRE une partie
+                const { gameId } = body;
+                
+                if (!gameId || !games[gameId]) {
+                    return res.status(404).json({ error: 'Partie non trouvée' });
+                }
+                
+                const game = games[gameId];
+                const playerCount = Object.keys(game.players).length;
+                
+                if (playerCount >= 2) {
+                    return res.status(400).json({ error: 'Partie pleine' });
+                }
+                
+                const playerId = 'P' + Date.now();
+                const isPlayer1 = playerCount === 0;
+                
+                game.players[playerId] = { id: playerId, isPlayer1 };
+                
+                return res.json({ 
+                    success: true, 
+                    playerId, 
+                    isPlayer1,
+                    players: game.players 
+                });
+            }
+        } catch (error) {
+            return res.status(500).json({ error: 'Erreur serveur' });
         }
-        
-        return res.json(games[gameId].gameState);
     }
     
     return res.status(405).json({ error: 'Méthode non autorisée' });
