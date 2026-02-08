@@ -61,124 +61,153 @@
     </div>
 
     <script>
-        // API simple
-        const API_URL = '/api/game';
-        let gameId = '';
-        let playerNumber = 1;
-        let selectedLetters = [];
+let gameId = '';
+let playerNumber = 1;
+let grid = [];
+let selected = [];
+let isDragging = false;
+let gameState = null;
+
+// Drag & Drop
+function startDrag(e) {
+    e.preventDefault();
+    isDragging = true;
+    selected = [];
+    updateSelection(e);
+}
+
+function dragOver(e) {
+    if (!isDragging) return;
+    e.preventDefault();
+    updateSelection(e);
+}
+
+function endDrag() {
+    if (!isDragging || selected.length < 3) return;
+    isDragging = false;
+    
+    // Valider automatiquement
+    const word = selected.map(idx => grid[idx]).join('');
+    alert('Mot trouvé: ' + word);
+    
+    // Envoyer au serveur
+    fetch('/api/game', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            action: 'submit', 
+            gameId: gameId,
+            word: word 
+        })
+    });
+    
+    // Réinitialiser
+    selected = [];
+    updateGrid();
+}
+
+function updateSelection(e) {
+    const cell = e.target.closest('.letter-cell');
+    if (!cell) return;
+    
+    const idx = parseInt(cell.dataset.index);
+    if (!selected.includes(idx)) {
+        selected.push(idx);
+        updateGrid();
+    }
+}
+
+function updateGrid() {
+    const gridEl = document.getElementById('grid');
+    gridEl.innerHTML = '';
+    
+    grid.forEach((letter, idx) => {
+        const cell = document.createElement('div');
+        cell.className = 'letter-cell';
+        cell.dataset.index = idx;
+        cell.textContent = letter;
+        cell.style.background = selected.includes(idx) ? '#bee3f8' : 'white';
         
-        async function createGame() {
-            const res = await fetch(API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'create' })
-            });
-            const data = await res.json();
-            
-            if (data.gameId) {
-                gameId = data.gameId;
-                alert('Partie créée! Code: ' + gameId);
-                joinGame();
-            }
-        }
+        cell.addEventListener('mousedown', startDrag);
+        cell.addEventListener('touchstart', startDrag);
         
-        async function joinGame() {
-            const code = document.getElementById('gameCode').value || gameId;
-            if (!code) return alert('Entrez un code');
-            
-            const res = await fetch(API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'join', gameId: code })
-            });
-            const data = await res.json();
-            
-            if (data.success) {
-                playerNumber = data.playerNumber;
-                alert('Vous êtes Joueur ' + playerNumber);
-                startGame();
-            } else {
-                alert(data.error);
-            }
-        }
+        gridEl.appendChild(cell);
+    });
+    
+    // Afficher le mot en cours
+    const currentWord = selected.map(idx => grid[idx]).join('');
+    document.getElementById('currentWord').textContent = 
+        currentWord || 'Glissez sur les lettres...';
+}
+
+// Timer synchronisé
+function startGameSync() {
+    setInterval(async () => {
+        if (!gameId) return;
         
-        function startGame() {
-            document.getElementById('lobby').style.display = 'none';
-            document.getElementById('gameScreen').style.display = 'block';
-            
-            // Créer la grille
-            createGrid();
-            startTimer();
-        }
+        const res = await fetch(`/api/game?gameId=${gameId}`);
+        gameState = await res.json();
         
-        function createGrid() {
-            const grid = document.getElementById('grid');
-            grid.innerHTML = '';
-            
-            const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-            
-            for (let i = 0; i < 25; i++) {
-                const cell = document.createElement('div');
-                cell.style.cssText = `
-                    width: 60px;
-                    height: 60px;
-                    background: white;
-                    border: 2px solid #cbd5e0;
-                    border-radius: 10px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 24px;
-                    font-weight: bold;
-                    cursor: pointer;
-                    user-select: none;
-                `;
-                cell.textContent = letters[Math.floor(Math.random() * letters.length)];
-                cell.onclick = () => selectLetter(cell);
-                grid.appendChild(cell);
-            }
-        }
+        // Mettre à jour l'interface
+        document.getElementById('score1').textContent = gameState.scores[1];
+        document.getElementById('score2').textContent = gameState.scores[2];
+        document.getElementById('timer').textContent = 
+            Math.floor(gameState.timeLeft / 60) + ':' + (gameState.timeLeft % 60);
         
-        function selectLetter(cell) {
-            if (selectedLetters.includes(cell)) {
-                cell.style.background = 'white';
-                selectedLetters = selectedLetters.filter(l => l !== cell);
-            } else {
-                cell.style.background = '#bee3f8';
-                selectedLetters.push(cell);
-            }
-            updateCurrentWord();
-        }
+        // Indiquer le tour
+        document.getElementById('player1').style.opacity = gameState.turn === 1 ? '1' : '0.5';
+        document.getElementById('player2').style.opacity = gameState.turn === 2 ? '1' : '0.5';
         
-        function updateCurrentWord() {
-            const word = selectedLetters.map(cell => cell.textContent).join('');
-            document.getElementById('currentWord').textContent = word || 'Glissez sur les lettres...';
-        }
+    }, 1000);
+}
+
+// Modifie createGame et joinGame pour utiliser la grille du serveur
+async function createGame() {
+    const res = await fetch('/api/game', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create' })
+    });
+    const data = await res.json();
+    
+    if (data.success) {
+        gameId = data.gameId;
+        grid = data.grid;
+        alert('Code: ' + gameId);
+        joinGame();
+    }
+}
+
+async function joinGame() {
+    const code = document.getElementById('gameCode').value || gameId;
+    const res = await fetch('/api/game', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'join', gameId: code })
+    });
+    const data = await res.json();
+    
+    if (data.success) {
+        playerNumber = data.playerNumber;
+        grid = data.grid;
+        gameState = data.gameState;
         
-        function submitWord() {
-            const word = selectedLetters.map(cell => cell.textContent).join('');
-            if (word.length < 3) return alert('Minimum 3 lettres');
-            alert('Mot soumis: ' + word);
-            selectedLetters.forEach(cell => cell.style.background = '#c6f6d5');
-            selectedLetters = [];
-            updateCurrentWord();
-        }
-        
-        function startTimer() {
-            let time = 120;
-            const timer = setInterval(() => {
-                const minutes = Math.floor(time / 60);
-                const seconds = time % 60;
-                document.getElementById('time').textContent = 
-                    `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-                
-                if (time <= 0) {
-                    clearInterval(timer);
-                    alert('Temps écoulé!');
-                }
-                time--;
-            }, 1000);
-        }
+        startGame();
+        startGameSync();
+        updateGrid();
+    }
+}
+
+function startGame() {
+    document.getElementById('lobby').style.display = 'none';
+    document.getElementById('gameScreen').style.display = 'block';
+    
+    // Activer le drag sur toute la grille
+    document.getElementById('grid').addEventListener('mousemove', dragOver);
+    document.getElementById('grid').addEventListener('touchmove', dragOver);
+    document.addEventListener('mouseup', endDrag);
+    document.addEventListener('touchend', endDrag);
+}
     </script>
 </body>
 </html>
