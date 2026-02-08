@@ -52,6 +52,18 @@
                 <!-- Les lettres seront ajoutées par JavaScript -->
             </div>
             
+            <!-- Après la grille -->
+            <div id="foundWords" style="
+                max-height: 200px;
+                overflow-y: auto;
+                margin: 20px;
+                padding: 10px;
+                border: 1px solid #ccc;
+                border-radius: 10px;
+            ">
+                <!-- Les mots apparaîtront ici -->
+            </div>
+
             <div style="text-align: center; margin-top: 20px;">
                 <button onclick="submitWord()" style="padding: 15px 30px; font-size: 18px;">
                     Valider le mot
@@ -60,124 +72,404 @@
         </div>
     </div>
     <script>
-        // API simple
-        const API_URL = '/api/game';
-        let gameId = '';
-        let playerNumber = 1;
-        let selectedLetters = [];
+        // Variables globales
+let gameId = '';
+let playerId = '';
+let playerNumber = '';
+let grid = [];
+let selectedCells = [];
+let isDragging = false;
+let gameState = null;
+let pollInterval = null;
+
+// Créer une partie
+async function createGame() {
+    try {
+        const response = await fetch('/api/game', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'create' })
+        });
         
-        async function createGame() {
-            const res = await fetch(API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'create' })
-            });
-            const data = await res.json();
+        const data = await response.json();
+        
+        if (data.success) {
+            gameId = data.gameId;
+            grid = data.grid;
             
-            if (data.gameId) {
-                gameId = data.gameId;
-                alert('Partie créée! Code: ' + gameId);
-                joinGame();
-            }
+            document.getElementById('gameCodeDisplay').textContent = `Code: ${gameId}`;
+            document.getElementById('gameCodeDisplay').style.display = 'block';
+            
+            // Auto-rejoindre comme joueur 1
+            await joinGame(gameId);
         }
+    } catch (error) {
+        alert('Erreur création partie');
+    }
+}
+
+// Rejoindre une partie
+async function joinGame(code) {
+    const gameCode = code || document.getElementById('gameCodeInput').value;
+    if (!gameCode) return alert('Entrez un code');
+    
+    try {
+        const response = await fetch('/api/game', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                action: 'join', 
+                gameId: gameCode 
+            })
+        });
         
-        async function joinGame() {
-            const code = document.getElementById('gameCode').value || gameId;
-            if (!code) return alert('Entrez un code');
+        const data = await response.json();
+        
+        if (data.success) {
+            gameId = gameCode;
+            playerId = data.playerId;
+            playerNumber = data.playerNumber;
+            grid = data.grid || grid;
             
-            const res = await fetch(API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'join', gameId: code })
-            });
-            const data = await res.json();
+            alert(`Vous êtes Joueur ${playerNumber}`);
             
-            if (data.success) {
-                playerNumber = data.playerNumber;
-                alert('Vous êtes Joueur ' + playerNumber);
+            // Si la partie est active (2 joueurs), démarrer
+            if (data.gameActive) {
                 startGame();
             } else {
-                alert(data.error);
+                // Attendre le 2ème joueur
+                waitForSecondPlayer();
             }
+        } else {
+            alert(data.error);
+        }
+    } catch (error) {
+        alert('Partie non trouvée');
+    }
+}
+
+// Attendre le 2ème joueur
+function waitForSecondPlayer() {
+    const checkInterval = setInterval(async () => {
+        const response = await fetch('/api/game', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                action: 'get', 
+                gameId: gameId 
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.gameState && data.gameState.gameActive) {
+            clearInterval(checkInterval);
+            startGame();
+        }
+    }, 2000);
+}
+
+// Démarrer le jeu
+function startGame() {
+    // Cacher lobby, montrer jeu
+    document.getElementById('lobby').style.display = 'none';
+    document.getElementById('gameScreen').style.display = 'block';
+    
+    // Créer la grille
+    createGrid();
+    
+    // Démarrer le polling pour les mises à jour
+    startPolling();
+    
+    // Setup drag & drop
+    setupDragAndDrop();
+}
+
+// Créer la grille visuelle
+function createGrid() {
+    const gridContainer = document.getElementById('grid');
+    gridContainer.innerHTML = '';
+    
+    grid.forEach((letter, index) => {
+        const cell = document.createElement('div');
+        cell.className = 'letter-cell';
+        cell.dataset.index = index;
+        cell.textContent = letter;
+        
+        // Style de la cellule
+        cell.style.cssText = `
+            width: 60px;
+            height: 60px;
+            background: white;
+            border: 2px solid #cbd5e0;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.2s;
+        `;
+        
+        gridContainer.appendChild(cell);
+    });
+}
+
+// Setup drag & drop
+function setupDragAndDrop() {
+    const gridContainer = document.getElementById('grid');
+    let startCell = null;
+    
+    // Démarrer le drag
+    gridContainer.addEventListener('mousedown', (e) => {
+        if (!isMyTurn()) return;
+        
+        const cell = e.target.closest('.letter-cell');
+        if (!cell) return;
+        
+        isDragging = true;
+        startCell = cell;
+        selectedCells = [parseInt(cell.dataset.index)];
+        updateVisualSelection();
+        e.preventDefault();
+    });
+    
+    gridContainer.addEventListener('touchstart', (e) => {
+        if (!isMyTurn()) return;
+        
+        const touch = e.touches[0];
+        const cell = document.elementFromPoint(touch.clientX, touch.clientY);
+        if (!cell || !cell.classList.contains('letter-cell')) return;
+        
+        isDragging = true;
+        startCell = cell;
+        selectedCells = [parseInt(cell.dataset.index)];
+        updateVisualSelection();
+        e.preventDefault();
+    });
+    
+    // Pendant le drag
+    document.addEventListener('mousemove', (e) => {
+        if (!isDragging || !isMyTurn()) return;
+        
+        const cell = document.elementFromPoint(e.clientX, e.clientY);
+        if (!cell || !cell.classList.contains('letter-cell')) return;
+        
+        const cellIndex = parseInt(cell.dataset.index);
+        
+        // Vérifier si adjacente à la dernière cellule
+        if (!selectedCells.includes(cellIndex) && isAdjacent(cellIndex)) {
+            selectedCells.push(cellIndex);
+            updateVisualSelection();
+        }
+    });
+    
+    document.addEventListener('touchmove', (e) => {
+        if (!isDragging || !isMyTurn()) return;
+        
+        const touch = e.touches[0];
+        const cell = document.elementFromPoint(touch.clientX, touch.clientY);
+        if (!cell || !cell.classList.contains('letter-cell')) return;
+        
+        const cellIndex = parseInt(cell.dataset.index);
+        
+        if (!selectedCells.includes(cellIndex) && isAdjacent(cellIndex)) {
+            selectedCells.push(cellIndex);
+            updateVisualSelection();
         }
         
-        function startGame() {
-            document.getElementById('lobby').style.display = 'none';
-            document.getElementById('gameScreen').style.display = 'block';
+        e.preventDefault();
+    });
+    
+    // Fin du drag (validation automatique)
+    document.addEventListener('mouseup', async () => {
+        if (!isDragging || !isMyTurn()) return;
+        
+        isDragging = false;
+        
+        if (selectedCells.length >= 3) {
+            await submitWord();
+        }
+        
+        selectedCells = [];
+        updateVisualSelection();
+    });
+    
+    document.addEventListener('touchend', async () => {
+        if (!isDragging || !isMyTurn()) return;
+        
+        isDragging = false;
+        
+        if (selectedCells.length >= 3) {
+            await submitWord();
+        }
+        
+        selectedCells = [];
+        updateVisualSelection();
+    });
+}
+
+// Vérifier si une cellule est adjacente à la dernière sélectionnée
+function isAdjacent(cellIndex) {
+    if (selectedCells.length === 0) return true;
+    
+    const lastIndex = selectedCells[selectedCells.length - 1];
+    const lastRow = Math.floor(lastIndex / 5);
+    const lastCol = lastIndex % 5;
+    const newRow = Math.floor(cellIndex / 5);
+    const newCol = cellIndex % 5;
+    
+    return Math.abs(newRow - lastRow) <= 1 && Math.abs(newCol - lastCol) <= 1;
+}
+
+// Mettre à jour la sélection visuelle
+function updateVisualSelection() {
+    document.querySelectorAll('.letter-cell').forEach((cell, index) => {
+        if (selectedCells.includes(index)) {
+            cell.style.background = '#bee3f8';
+            cell.style.transform = 'scale(1.1)';
+        } else {
+            cell.style.background = 'white';
+            cell.style.transform = 'scale(1)';
+        }
+    });
+    
+    // Afficher le mot en cours
+    const currentWord = selectedCells.map(idx => grid[idx]).join('');
+    document.getElementById('currentWord').textContent = 
+        currentWord || 'Glissez sur les lettres...';
+}
+
+// Soumettre un mot
+async function submitWord() {
+    const word = selectedCells.map(idx => grid[idx]).join('');
+    
+    try {
+        const response = await fetch('/api/game', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'submit',
+                gameId: gameId,
+                playerId: playerId,
+                word: word
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Le polling mettra à jour l'interface
+        } else {
+            alert(data.error);
+        }
+    } catch (error) {
+        console.error('Erreur soumission:', error);
+    }
+}
+
+// Polling pour les mises à jour
+function startPolling() {
+    pollInterval = setInterval(async () => {
+        try {
+            const response = await fetch('/api/game', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'get',
+                    gameId: gameId
+                })
+            });
             
-            // Créer la grille
-            createGrid();
-            startTimer();
-        }
-        
-        function createGrid() {
-            const grid = document.getElementById('grid');
-            grid.innerHTML = '';
+            const data = await response.json();
             
-            const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-            
-            for (let i = 0; i < 25; i++) {
-                const cell = document.createElement('div');
-                cell.style.cssText = `
-                    width: 60px;
-                    height: 60px;
-                    background: white;
-                    border: 2px solid #cbd5e0;
-                    border-radius: 10px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 24px;
-                    font-weight: bold;
-                    cursor: pointer;
-                    user-select: none;
-                `;
-                cell.textContent = letters[Math.floor(Math.random() * letters.length)];
-                cell.onclick = () => selectLetter(cell);
-                grid.appendChild(cell);
-            }
-        }
-        
-        function selectLetter(cell) {
-            if (selectedLetters.includes(cell)) {
-                cell.style.background = 'white';
-                selectedLetters = selectedLetters.filter(l => l !== cell);
-            } else {
-                cell.style.background = '#bee3f8';
-                selectedLetters.push(cell);
-            }
-            updateCurrentWord();
-        }
-        
-        function updateCurrentWord() {
-            const word = selectedLetters.map(cell => cell.textContent).join('');
-            document.getElementById('currentWord').textContent = word || 'Glissez sur les lettres...';
-        }
-        
-        function submitWord() {
-            const word = selectedLetters.map(cell => cell.textContent).join('');
-            if (word.length < 3) return alert('Minimum 3 lettres');
-            alert('Mot soumis: ' + word);
-            selectedLetters.forEach(cell => cell.style.background = '#c6f6d5');
-            selectedLetters = [];
-            updateCurrentWord();
-        }
-        
-        function startTimer() {
-            let time = 120;
-            const timer = setInterval(() => {
-                const minutes = Math.floor(time / 60);
-                const seconds = time % 60;
-                document.getElementById('time').textContent = 
-                    `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+            if (data.gameState) {
+                gameState = data.gameState;
+                updateGameInterface();
                 
-                if (time <= 0) {
-                    clearInterval(timer);
-                    alert('Temps écoulé!');
+                // Vérifier fin de partie
+                if (!gameState.gameActive) {
+                    clearInterval(pollInterval);
+                    endGame();
                 }
-                time--;
-            }, 1000);
+            }
+        } catch (error) {
+            console.error('Erreur polling:', error);
         }
+    }, 1000);
+}
+
+// Mettre à jour l'interface
+function updateGameInterface() {
+    if (!gameState) return;
+    
+    // Scores
+    document.getElementById('score1').textContent = gameState.scores['1'];
+    document.getElementById('score2').textContent = gameState.scores['2'];
+    
+    // Timer
+    const minutes = Math.floor(gameState.timeLeft / 60);
+    const seconds = gameState.timeLeft % 60;
+    document.getElementById('time').textContent = 
+        `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+    
+    // Tour actuel
+    document.getElementById('player1').style.opacity = 
+        gameState.currentTurn === '1' ? '1' : '0.5';
+    document.getElementById('player2').style.opacity = 
+        gameState.currentTurn === '2' ? '1' : '0.5';
+    
+    // Mots trouvés
+    updateFoundWords();
+}
+
+// Mettre à jour la liste des mots
+function updateFoundWords() {
+    const container = document.getElementById('foundWords');
+    container.innerHTML = '';
+    
+    // Mots du joueur 1
+    gameState.foundWords['1'].forEach(word => {
+        const el = document.createElement('div');
+        el.textContent = `👤 ${word}`;
+        el.style.cssText = 'padding: 5px; background: #bee3f8; margin: 2px; border-radius: 5px;';
+        container.appendChild(el);
+    });
+    
+    // Mots du joueur 2
+    gameState.foundWords['2'].forEach(word => {
+        const el = document.createElement('div');
+        el.textContent = `👥 ${word}`;
+        el.style.cssText = 'padding: 5px; background: #c6f6d5; margin: 2px; border-radius: 5px;';
+        container.appendChild(el);
+    });
+}
+
+// Vérifier si c'est mon tour
+function isMyTurn() {
+    return gameState && gameState.currentTurn === playerNumber;
+}
+
+// Fin de partie
+function endGame() {
+    let winner = '';
+    if (gameState.scores['1'] > gameState.scores['2']) winner = 'Joueur 1';
+    else if (gameState.scores['2'] > gameState.scores['1']) winner = 'Joueur 2';
+    else winner = 'Match nul';
+    
+    alert(`🏆 Partie terminée! ${winner} gagne!`);
+}
+
+// Fonction pour le bouton de secours
+function submitWordButton() {
+    if (selectedCells.length >= 3) {
+        submitWord();
+    } else {
+        alert('Glissez sur au moins 3 lettres');
+    }
+}
     </script>
 </body>
 </html>
