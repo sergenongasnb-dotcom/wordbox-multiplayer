@@ -22,7 +22,14 @@
                 Créer une partie
             </button>
             <br>
-            <input id="gameCode" placeholder="Code de partie" style="padding: 10px; font-size: 16px;">
+            <input id="gameCodeInput" placeholder="Code de partie" style="padding: 10px; font-size: 16px;">
+            <div id="gameCodeDisplay" style="
+                margin: 15px;
+                padding: 10px;
+                background: #e8f4fd;
+                border-radius: 8px;
+                display: none;
+            "></div>
             <button onclick="joinGame()" style="padding: 15px; margin: 10px; font-size: 18px;">
                 Rejoindre
             </button>
@@ -97,7 +104,10 @@ async function createGame() {
             gameId = data.gameId;
             grid = data.grid;
             
-            document.getElementById('gameCodeDisplay').textContent = `Code: ${gameId}`;
+            if (document.getElementById('gameCodeDisplay')) {
+    document.getElementById('gameCodeDisplay').textContent = `Code: ${gameId}`;
+    document.getElementById('gameCodeDisplay').style.display = 'block';
+}
             document.getElementById('gameCodeDisplay').style.display = 'block';
             
             // Auto-rejoindre comme joueur 1
