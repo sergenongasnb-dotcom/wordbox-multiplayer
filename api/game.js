@@ -1,7 +1,8 @@
-let games = {};
+// DÉBUT DU FICHIER - LIGNE 1
+const games = {};
 
 export default function handler(req, res) {
-    // Autoriser CORS
+    // CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -11,7 +12,6 @@ export default function handler(req, res) {
     }
     
     if (req.method === 'POST') {
-        // Créer une nouvelle partie
         const gameId = 'WB_' + Math.random().toString(36).substr(2, 6).toUpperCase();
         
         games[gameId] = {
@@ -21,10 +21,12 @@ export default function handler(req, res) {
                 turn: 'player1',
                 scores: { player1: 0, player2: 0 },
                 foundWords: { player1: [], player2: [] },
-                gameActive: false,
-                grid: generateGrid()
-            }
+                gameActive: false
+            },
+            createdAt: Date.now()
         };
+        
+        console.log('Partie créée:', gameId);
         
         return res.json({ 
             success: true, 
@@ -43,18 +45,4 @@ export default function handler(req, res) {
     }
     
     return res.status(405).json({ error: 'Méthode non autorisée' });
-}
-
-function generateGrid() {
-    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    const grid = [];
-    
-    for (let i = 0; i < 5; i++) {
-        grid[i] = [];
-        for (let j = 0; j < 5; j++) {
-            grid[i][j] = letters[Math.floor(Math.random() * letters.length)];
-        }
-    }
-    
-    return grid;
 }
