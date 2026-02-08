@@ -62,3 +62,60 @@ const game = new GameClient();
 // Expose les fonctions globalement
 window.createGame = () => game.createGame();
 window.joinGame = () => game.joinGame();
+let currentGameCode = '';
+
+window.createGame = async function() {
+    try {
+        const response = await fetch('/api/game', {
+            method: 'POST'
+        });
+        const data = await response.json();
+        
+        if (data.gameId) {
+            currentGameCode = data.gameId;
+            document.getElementById('code-display').textContent = data.gameId;
+            document.getElementById('game-code').style.display = 'block';
+            alert('✅ Partie créée! Code: ' + data.gameId);
+            
+            // Auto-join
+            joinGame();
+        }
+    } catch (error) {
+        alert('❌ Erreur création');
+    }
+};
+
+window.joinGame = async function() {
+    const gameId = currentGameCode || document.getElementById('game-code-input').value;
+    
+    if (!gameId) {
+        alert('❌ Entre un code de partie');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/players', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ gameId: gameId })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('✅ Vous êtes Joueur ' + (data.isPlayer1 ? '1' : '2'));
+            // Passe à l'écran de jeu
+            startGame();
+        } else {
+            alert('❌ ' + (data.error || 'Erreur'));
+        }
+    } catch (error) {
+        alert('❌ Partie non trouvée');
+    }
+};
+
+function startGame() {
+    // Passe à l'écran de jeu
+    document.getElementById('lobby-screen').classList.remove('active');
+    document.getElementById('game-screen').classList.add('active');
+}
