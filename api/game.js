@@ -24,10 +24,10 @@ export default function handler(req, res) {
                     grid: grid,
                     players: {},
                     scores: { '1': 0, '2': 0 },
-                    foundWords: { '1': [], '2': [] },
-                    currentTurn: '1',
+                    foundWords: { '1': [], '2': [] }, // Séparé par joueur
                     timeLeft: 120,
                     gameActive: false,
+                    startedAt: null,
                     createdAt: Date.now()
                 };
                 
@@ -66,19 +66,14 @@ export default function handler(req, res) {
                 }
                 
                 return res.json({
-                success: true,
-                playerId: newPlayerId,
-                playerNumber: playerNum,
-                grid: game.grid,
-                gameState: {  // <-- CHANGÉ de gameActive à gameState
-                    gameActive: game.gameActive,
-                    scores: game.scores,
-                    currentTurn: game.currentTurn
-                }
-            });
+                    success: true,
+                    playerId: newPlayerId,
+                    playerNumber: playerNum,
+                    grid: game.grid
+                });
             }
             
-            // VALIDER un mot
+            // VALIDER un mot (mode simultané)
             if (action === 'submit') {
                 if (!gameId || !games[gameId]) {
                     return res.status(404).json({ error: 'Partie non trouvée' });
@@ -91,10 +86,16 @@ export default function handler(req, res) {
                     return res.status(400).json({ error: 'Joueur non trouvé' });
                 }
                 
-                // Vérifier que c'est son tour
-                if (game.currentTurn !== player.number) {
-                    return res.status(400).json({ error: "Ce n'est pas votre tour" });
+                const playerKey = player.number;
+                const wordUpper = word.toUpperCase();
+                
+                // Vérifier si le joueur a déjà utilisé ce mot (seulement lui)
+                if (game.foundWords[playerKey].includes(wordUpper)) {
+                    return res.status(400).json({ error: 'Vous avez déjà utilisé ce mot' });
                 }
+                
+                // Pas de vérification si l'autre joueur a utilisé le mot
+                // → Les deux peuvent utiliser le même mot
                 
                 // Calculer les points
                 const points = word.length;
@@ -102,11 +103,8 @@ export default function handler(req, res) {
                 if (word.length >= 8) points += 3;
                 
                 // Mettre à jour
-                game.scores[player.number] += points;
-                game.foundWords[player.number].push(word.toUpperCase());
-                
-                // Changer de tour
-                game.currentTurn = (game.currentTurn === '1') ? '2' : '1';
+                game.scores[playerKey] += points;
+                game.foundWords[playerKey].push(wordUpper);
                 
                 return res.json({
                     success: true,
@@ -114,7 +112,6 @@ export default function handler(req, res) {
                     gameState: {
                         scores: game.scores,
                         foundWords: game.foundWords,
-                        currentTurn: game.currentTurn,
                         timeLeft: game.timeLeft,
                         gameActive: game.gameActive
                     }
@@ -144,7 +141,6 @@ export default function handler(req, res) {
                         grid: game.grid,
                         scores: game.scores,
                         foundWords: game.foundWords,
-                        currentTurn: game.currentTurn,
                         timeLeft: game.timeLeft,
                         gameActive: game.gameActive,
                         players: game.players
@@ -160,14 +156,12 @@ export default function handler(req, res) {
     return res.status(405).json({ error: 'Méthode non autorisée' });
 }
 
-// Génère la MÊME grille pour tous
 function generateGrid() {
     const vowels = 'AAAAAEEEEEIIIIIOOOOUUU';
     const consonants = 'BBCCCDDDFFGGGHHJJKKLLLLMMNNNPPQQRRRRSSSSTTTTVWXYZ';
     
     let grid = [];
     
-    // 25 lettres: ~40% voyelles, 60% consonnes
     for (let i = 0; i < 25; i++) {
         if (Math.random() < 0.4) {
             grid.push(vowels[Math.floor(Math.random() * vowels.length)]);
