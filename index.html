@@ -71,10 +71,10 @@
                 <!-- Les mots apparaîtront ici -->
             </div>
 
-            <div style="text-align: center; margin-top: 20px;">
-                <button onclick="submitWord()" style="padding: 15px 30px; font-size: 18px;">
-                    Valider le mot
-                </button>
+            <div style="display: flex; justify-content: space-between; margin: 20px 0; font-size: 20px;">
+                <div>👤 Vous: <span id="score1">0</span></div>
+                <div>⏱️ <span id="time">02:00</span></div>
+                <div>👥 Adversaire: <span id="score2">0</span></div>
             </div>
         </div>
     </div>
@@ -425,11 +425,8 @@ function updateGameInterface() {
     document.getElementById('time').textContent = 
         `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
     
-    // Tour actuel
-    document.getElementById('player1').style.opacity = 
-        gameState.currentTurn === '1' ? '1' : '0.5';
-    document.getElementById('player2').style.opacity = 
-        gameState.currentTurn === '2' ? '1' : '0.5';
+    // Pas d'indicateur de tour (mode simultané)
+    // Les deux joueurs peuvent jouer en même temps
     
     // Mots trouvés
     updateFoundWords();
@@ -457,9 +454,9 @@ function updateFoundWords() {
     });
 }
 
-// Vérifier si c'est mon tour
 function isMyTurn() {
-    return gameState && gameState.currentTurn === playerNumber;
+    // Mode simultané : toujours vrai si la partie est active
+    return gameState && gameState.gameActive;
 }
 
 // Fin de partie
