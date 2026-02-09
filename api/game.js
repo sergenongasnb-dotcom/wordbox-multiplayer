@@ -78,6 +78,11 @@ export default function handler(req, res) {
             if (action === 'submit') {
                 if (!gameId || !games[gameId]) {
                     return res.status(404).json({ error: 'Partie non trouvée' });
+                    // Vérifier la longueur du mot
+                if (word.length < 3) {
+                    return res.status(400).json({ error: 'Minimum 3 lettres' });
+                if (!VALID_WORDS.has(wordUpper)) {
+                    return res.status(400).json({ error: 'Mot non valide' });
                 }
                 
                 const game = games[gameId];
