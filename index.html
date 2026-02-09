@@ -77,6 +77,26 @@
                 <div>👥 Adversaire: <span id="score2">0</span></div>
             </div>
         </div>
+        <!-- Écran de fin -->
+        <div id="endScreen" style="display: none; text-align: center; padding: 40px;">
+            <h1>🏆 Partie Terminée!</h1>
+            <div id="finalScores" style="font-size: 24px; margin: 30px;">
+                <!-- Scores finaux -->
+            </div>
+            <div style="display: flex; gap: 40px; justify-content: center; margin: 40px;">
+                <div style="flex: 1;">
+                    <h3>Vos mots</h3>
+                    <div id="myFinalWords" style="text-align: left; max-height: 300px; overflow-y: auto;"></div>
+                </div>
+                <div style="flex: 1;">
+                    <h3>Mots adversaire</h3>
+                    <div id="opponentFinalWords" style="text-align: left; max-height: 300px; overflow-y: auto;"></div>
+                </div>
+            </div>
+            <button onclick="backToLobby()" style="padding: 15px 30px; font-size: 18px; margin-top: 20px;">
+                Retour au lobby
+            </button>
+        </div>
     </div>
     <script>
         // Variables globales
@@ -435,23 +455,29 @@ function updateGameInterface() {
 // Mettre à jour la liste des mots
 function updateFoundWords() {
     const container = document.getElementById('foundWords');
-    container.innerHTML = '';
+    container.innerHTML = '<h4>Vos mots trouvés:</h4>';
     
-    // Mots du joueur 1
-    gameState.foundWords['1'].forEach(word => {
-        const el = document.createElement('div');
-        el.textContent = `👤 ${word}`;
-        el.style.cssText = 'padding: 5px; background: #bee3f8; margin: 2px; border-radius: 5px;';
-        container.appendChild(el);
-    });
-    
-    // Mots du joueur 2
-    gameState.foundWords['2'].forEach(word => {
-        const el = document.createElement('div');
-        el.textContent = `👥 ${word}`;
-        el.style.cssText = 'padding: 5px; background: #c6f6d5; margin: 2px; border-radius: 5px;';
-        container.appendChild(el);
-    });
+    // Afficher seulement SES propres mots pendant la partie
+    if (gameState && gameState.foundWords) {
+        const myWords = gameState.foundWords[playerNumber] || [];
+        
+        myWords.forEach(word => {
+            const el = document.createElement('div');
+            el.textContent = word;
+            el.style.cssText = `
+                padding: 8px 12px;
+                background: #bee3f8;
+                margin: 4px;
+                border-radius: 8px;
+                font-weight: bold;
+            `;
+            container.appendChild(el);
+        });
+        
+        if (myWords.length === 0) {
+            container.innerHTML += '<div style="color: #999; font-style: italic;">Aucun mot encore...</div>';
+        }
+    }
 }
 
 function isMyTurn() {
@@ -461,21 +487,79 @@ function isMyTurn() {
 
 // Fin de partie
 function endGame() {
-    let winner = '';
-    if (gameState.scores['1'] > gameState.scores['2']) winner = 'Joueur 1';
-    else if (gameState.scores['2'] > gameState.scores['1']) winner = 'Joueur 2';
-    else winner = 'Match nul';
+    // Cacher l'écran de jeu
+    document.getElementById('gameScreen').style.display = 'none';
     
-    alert(`🏆 Partie terminée! ${winner} gagne!`);
+    // Afficher l'écran de fin
+    document.getElementById('endScreen').style.display = 'block';
+    
+    // Afficher les scores finaux
+    const myScore = gameState.scores[playerNumber];
+    const opponentNum = playerNumber === '1' ? '2' : '1';
+    const opponentScore = gameState.scores[opponentNum];
+    
+    let winnerText = '';
+    if (myScore > opponentScore) winnerText = '🎉 Vous gagnez!';
+    else if (opponentScore > myScore) winnerText = '😔 L\'adversaire gagne';
+    else winnerText = '🤝 Match nul';
+    
+    document.getElementById('finalScores').innerHTML = `
+        <div>${winnerText}</div>
+        <div style="font-size: 18px; margin-top: 10px;">
+            Vous: ${myScore} pts | Adversaire: ${opponentScore} pts
+        </div>
+    `;
+    
+    // Afficher TOUS les mots
+    displayAllWords();
 }
 
-// Fonction pour le bouton de secours
-function submitWordButton() {
-    if (selectedCells.length >= 3) {
-        submitWord();
-    } else {
-        alert('Glissez sur au moins 3 lettres');
+function displayAllWords() {
+    const myWords = gameState.foundWords[playerNumber] || [];
+    const opponentNum = playerNumber === '1' ? '2' : '1';
+    const opponentWords = gameState.foundWords[opponentNum] || [];
+    
+    const myContainer = document.getElementById('myFinalWords');
+    const opponentContainer = document.getElementById('opponentFinalWords');
+    
+    myContainer.innerHTML = '';
+    opponentContainer.innerHTML = '';
+    
+    // Vos mots
+    myWords.forEach(word => {
+        const el = document.createElement('div');
+        el.textContent = word;
+        el.style.cssText = 'padding: 6px; background: #bee3f8; margin: 3px; border-radius: 5px;';
+        myContainer.appendChild(el);
+    });
+    
+    if (myWords.length === 0) {
+        myContainer.innerHTML = '<div style="color: #999; font-style: italic;">Aucun mot</div>';
     }
+    
+    // Mots adversaire
+    opponentWords.forEach(word => {
+        const el = document.createElement('div');
+        el.textContent = word;
+        el.style.cssText = 'padding: 6px; background: #fbd38d; margin: 3px; border-radius: 5px;';
+        opponentContainer.appendChild(el);
+    });
+    
+    if (opponentWords.length === 0) {
+        opponentContainer.innerHTML = '<div style="color: #999; font-style: italic;">Aucun mot</div>';
+    }
+}
+
+function backToLobby() {
+    document.getElementById('endScreen').style.display = 'none';
+    document.getElementById('lobby').style.display = 'block';
+    
+    // Réinitialiser
+    gameId = '';
+    playerId = '';
+    playerNumber = '';
+    selectedCells = [];
+    clearInterval(pollInterval);
 }
     </script>
 </body>
