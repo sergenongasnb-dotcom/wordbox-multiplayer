@@ -2,6 +2,7 @@ const games = {};
 
 export default function handler(req, res) {
     // CORS
+    console.log('Requête reçue:', req.method, req.body);
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -149,6 +150,8 @@ export default function handler(req, res) {
             }
             
         } catch (error) {
+            console.error('Erreur API:', error);
+            return res.status(500).json({ error: 'Erreur serveur: ' + error.message });
             return res.status(500).json({ error: 'Erreur serveur' });
         }
     }
