@@ -1,182 +1,137 @@
 const games = {};
+const VALID_WORDS = new Set(['ABLE', 'ABRI', 'ACRE', 'AIRE', 'AVION', 'BANC', 'BLEU', 'CHAISE', 'TABLE']);
 
 export default function handler(req, res) {
     // CORS
-    console.log('Requête reçue:', req.method, req.body);
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
+    if (req.method === 'OPTIONS') return res.status(200).end();
     
-    if (req.method === 'POST') {
-        try {
-            const { action, gameId, word, playerId } = req.body;
-            
-            // CRÉER une partie
-            if (action === 'create') {
-                const newGameId = 'WB' + Math.random().toString(36).substr(2, 4).toUpperCase();
-                const grid = generateGrid();
-                
-                games[newGameId] = {
-                    gameId: newGameId,
-                    grid: grid,
-                    players: {},
-                    scores: { '1': 0, '2': 0 },
-                    foundWords: { '1': [], '2': [] }, // Séparé par joueur
-                    timeLeft: 120,
-                    gameActive: false,
-                    startedAt: null,
-                    createdAt: Date.now()
-                };
-                
-                return res.json({ 
-                    success: true, 
-                    gameId: newGameId,
-                    grid: grid 
-                });
+    try {
+        const body = req.body || {};
+        const { action, gameId, word, playerId } = body;
+        
+        // CRÉER
+        if (action === 'create') {
+            const newId = 'WB' + Math.random().toString(36).substr(2, 4).toUpperCase();
+            const grid = [];
+            for (let i = 0; i < 25; i++) {
+                grid.push(String.fromCharCode(65 + Math.floor(Math.random() * 26)));
             }
             
-            // REJOINDRE une partie
-            if (action === 'join') {
-                if (!gameId || !games[gameId]) {
-                    return res.status(404).json({ error: 'Partie non trouvée' });
-                }
-                
-                const game = games[gameId];
-                const playerCount = Object.keys(game.players).length;
-                
-                if (playerCount >= 2) {
-                    return res.status(400).json({ error: 'Partie pleine' });
-                }
-                
-                const playerNum = (playerCount === 0) ? '1' : '2';
-                const newPlayerId = 'P' + Date.now();
-                
-                game.players[newPlayerId] = {
-                    id: newPlayerId,
-                    number: playerNum
-                };
-                
-                // Démarrer la partie si 2 joueurs
-                if (Object.keys(game.players).length === 2) {
-                    game.gameActive = true;
-                    game.startedAt = Date.now();
-                }
-                
-                return res.json({
-                    success: true,
-                    playerId: newPlayerId,
-                    playerNumber: playerNum,
-                    grid: game.grid
-                });
-            }
+            games[newId] = {
+                grid: grid,
+                players: {},
+                scores: {'1':0, '2':0},
+                words: {'1':[], '2':[]},
+                timeLeft: 120,
+                active: false,
+                startTime: null
+            };
             
-            // VALIDER un mot (mode simultané)
-            if (action === 'submit') {
-                if (!gameId || !games[gameId]) {
-                    return res.status(404).json({ error: 'Partie non trouvée' });
-                    // Vérifier la longueur du mot
-                if (word.length < 3) {
-                    return res.status(400).json({ error: 'Minimum 3 lettres' });
-                if (!VALID_WORDS.has(wordUpper)) {
-                    return res.status(400).json({ error: 'Mot non valide' });
-                }
-                
-                const game = games[gameId];
-                const player = Object.values(game.players).find(p => p.id === playerId);
-                
-                if (!player) {
-                    return res.status(400).json({ error: 'Joueur non trouvé' });
-                }
-                
-                const playerKey = player.number;
-                const wordUpper = word.toUpperCase();
-                
-                // Vérifier si le joueur a déjà utilisé ce mot (seulement lui)
-                if (game.foundWords[playerKey].includes(wordUpper)) {
-                    return res.status(400).json({ error: 'Vous avez déjà utilisé ce mot' });
-                }
-                
-                // Pas de vérification si l'autre joueur a utilisé le mot
-                // → Les deux peuvent utiliser le même mot
-                
-                // Calculer les points
-                const points = word.length;
-                if (word.length >= 6) points += 2;
-                if (word.length >= 8) points += 3;
-                
-                // Mettre à jour
-                game.scores[playerKey] += points;
-                game.foundWords[playerKey].push(wordUpper);
-                
-                return res.json({
-                    success: true,
-                    points: points,
-                    gameState: {
-                        scores: game.scores,
-                        foundWords: game.foundWords,
-                        timeLeft: game.timeLeft,
-                        gameActive: game.gameActive
-                    }
-                });
-            }
-            
-            // OBTENIR l'état de la partie
-            if (action === 'get') {
-                if (!gameId || !games[gameId]) {
-                    return res.status(404).json({ error: 'Partie non trouvée' });
-                }
-                
-                const game = games[gameId];
-                
-                // Mettre à jour le timer
-                if (game.gameActive && game.startedAt) {
-                    const elapsed = Math.floor((Date.now() - game.startedAt) / 1000);
-                    game.timeLeft = Math.max(0, 120 - elapsed);
-                    
-                    if (game.timeLeft <= 0) {
-                        game.gameActive = false;
-                    }
-                }
-                
-                return res.json({
-                    gameState: {
-                        grid: game.grid,
-                        scores: game.scores,
-                        foundWords: game.foundWords,
-                        timeLeft: game.timeLeft,
-                        gameActive: game.gameActive,
-                        players: game.players
-                    }
-                });
-            }
-            
-        } catch (error) {
-            console.error('Erreur API:', error);
-            return res.status(500).json({ error: 'Erreur serveur: ' + error.message });
-            return res.status(500).json({ error: 'Erreur serveur' });
+            return res.json({success: true, gameId: newId, grid: grid});
         }
-    }
-    
-    return res.status(405).json({ error: 'Méthode non autorisée' });
-}
-
-function generateGrid() {
-    const vowels = 'AAAAAEEEEEIIIIIOOOOUUU';
-    const consonants = 'BBCCCDDDFFGGGHHJJKKLLLLMMNNNPPQQRRRRSSSSTTTTVWXYZ';
-    
-    let grid = [];
-    
-    for (let i = 0; i < 25; i++) {
-        if (Math.random() < 0.4) {
-            grid.push(vowels[Math.floor(Math.random() * vowels.length)]);
-        } else {
-            grid.push(consonants[Math.floor(Math.random() * consonants.length)]);
+        
+        // REJOINDRE
+        if (action === 'join') {
+            if (!gameId || !games[gameId]) {
+                return res.json({error: 'Partie non trouvée'});
+            }
+            
+            const game = games[gameId];
+            const count = Object.keys(game.players).length;
+            
+            if (count >= 2) {
+                return res.json({error: 'Partie pleine'});
+            }
+            
+            const playerNum = count === 0 ? '1' : '2';
+            const newPid = 'P' + Date.now();
+            
+            game.players[newPid] = {id: newPid, num: playerNum};
+            
+            if (Object.keys(game.players).length === 2) {
+                game.active = true;
+                game.startTime = Date.now();
+            }
+            
+            return res.json({
+                success: true,
+                playerId: newPid,
+                playerNumber: playerNum,
+                grid: game.grid
+            });
         }
+        
+        // SOUMETTRE
+        if (action === 'submit') {
+            if (!gameId || !games[gameId]) {
+                return res.json({error: 'Partie non trouvée'});
+            }
+            
+            const game = games[gameId];
+            const player = Object.values(game.players).find(p => p.id === playerId);
+            
+            if (!player) {
+                return res.json({error: 'Joueur invalide'});
+            }
+            
+            const pNum = player.num;
+            const wUpper = word.toUpperCase();
+            
+            if (wUpper.length < 3) {
+                return res.json({error: '3 lettres minimum'});
+            }
+            
+            if (game.words[pNum].includes(wUpper)) {
+                return res.json({error: 'Déjà utilisé'});
+            }
+            
+            if (!VALID_WORDS.has(wUpper)) {
+                return res.json({error: 'Mot invalide'});
+            }
+            
+            // Points
+            let pts = wUpper.length;
+            if (wUpper.length >= 6) pts += 2;
+            if (wUpper.length >= 8) pts += 3;
+            
+            game.scores[pNum] += pts;
+            game.words[pNum].push(wUpper);
+            
+            return res.json({success: true, points: pts});
+        }
+        
+        // GET STATE
+        if (action === 'get') {
+            if (!gameId || !games[gameId]) {
+                return res.json({error: 'Partie non trouvée'});
+            }
+            
+            const game = games[gameId];
+            
+            // Timer
+            if (game.active && game.startTime) {
+                const elapsed = Math.floor((Date.now() - game.startTime) / 1000);
+                game.timeLeft = Math.max(0, 120 - elapsed);
+                if (game.timeLeft <= 0) game.active = false;
+            }
+            
+            return res.json({
+                grid: game.grid,
+                scores: game.scores,
+                words: game.words,
+                timeLeft: game.timeLeft,
+                active: game.active
+            });
+        }
+        
+        return res.json({error: 'Action invalide'});
+        
+    } catch (error) {
+        console.log('ERREUR:', error);
+        return res.json({error: 'Erreur serveur'});
     }
-    
-    return grid;
 }
