@@ -88,6 +88,9 @@ export default function handler(req, res) {
                 }
                 
                 const playerKey = player.number;
+                if (!word || word.trim().length < 3) {
+                return res.status(400).json({ error: 'Minimum 3 lettres' });
+                }
                 const wordUpper = word.toUpperCase();
                 
                 // Vérifier si le joueur a déjà utilisé ce mot (seulement lui)
@@ -99,7 +102,7 @@ export default function handler(req, res) {
                 // → Les deux peuvent utiliser le même mot
                 
                 // Calculer les points
-                const points = word.length;
+                let points = word.length;
                 if (word.length >= 6) points += 2;
                 if (word.length >= 8) points += 3;
                 
@@ -151,8 +154,7 @@ export default function handler(req, res) {
             
         } catch (error) {
             console.error('Erreur API:', error);
-            return res.status(500).json({ error: 'Erreur serveur: ' + error.message });
-            return res.status(500).json({ error: 'Erreur serveur' });
+            return res.status(500).json({ error: 'Erreur: ' + error.message });
         }
     }
     
