@@ -5,7 +5,7 @@ export default function handler(req, res) {
     // Nettoyer les vieilles parties (10 minutes)
 const now = Date.now();
 for (const id in games) {
-    if (now - games[id].createdAt > 10 * 60 * 1000) { // 10 minutes
+    if (now - games[id].createdAt > 120 * 60 * 1000) { // 120 minutes
         delete games[id];
     }
 }
@@ -130,37 +130,35 @@ for (const id in games) {
             }
             
             // OBTENIR l'état de la partie
-            if (action === 'get') {
-                if (!gameId || !games[gameId]) {
-                    return res.json({ 
-                        error: 'Partie expirée',
-                        expired: true 
-                    });
-                }
-                
-                const game = games[gameId];
-                
-                // Mettre à jour le timer
-                if (game.gameActive && game.startedAt) {
-                    const elapsed = Math.floor((Date.now() - game.startedAt) / 1000);
-                    game.timeLeft = Math.max(0, 120 - elapsed);
-                    
-                    if (game.timeLeft <= 0) {
-                        game.gameActive = false;
-                    }
-                }
-                
-                return res.json({
-                    gameState: {
-                        grid: game.grid,
-                        scores: game.scores,
-                        foundWords: game.foundWords,
-                        timeLeft: game.timeLeft,
-                        gameActive: game.gameActive,
-                        players: game.players
-                    }
-                });
-            }
+            // OBTENIR l'état de la partie
+if (action === 'get') {
+    if (!gameId || !games[gameId]) {
+        return res.status(404).json({ error: 'Partie non trouvée' });
+    }
+    
+    const game = games[gameId];
+    
+    // Mettre à jour le timer
+    if (game.gameActive && game.startedAt) {
+        const elapsed = Math.floor((Date.now() - game.startedAt) / 1000);
+        game.timeLeft = Math.max(0, 120 - elapsed);
+        
+        if (game.timeLeft <= 0) {
+            game.gameActive = false;
+        }
+    }
+    
+    return res.json({
+        gameState: {
+            grid: game.grid,
+            scores: game.scores,
+            foundWords: game.foundWords,
+            timeLeft: game.timeLeft,
+            gameActive: game.gameActive,
+            players: game.players
+        }
+    });
+ }
             
         } catch (error) {
             console.error('Erreur API:', error);
