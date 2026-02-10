@@ -2,13 +2,6 @@ const games = {};
 
 export default function handler(req, res) {
     // CORS
-    // Nettoyer les vieilles parties (10 minutes)
-const now = Date.now();
-for (const id in games) {
-    if (now - games[id].createdAt > 10 * 60 * 1000) { // 10 minutes
-        delete games[id];
-    }
-}
     console.log('Requête reçue:', req.method, req.body);
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
@@ -132,10 +125,7 @@ for (const id in games) {
             // OBTENIR l'état de la partie
             if (action === 'get') {
                 if (!gameId || !games[gameId]) {
-                    return res.json({ 
-                        error: 'Partie expirée',
-                        expired: true 
-                    });
+                    return res.status(404).json({ error: 'Partie non trouvée' });
                 }
                 
                 const game = games[gameId];
