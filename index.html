@@ -402,12 +402,6 @@ async function submitWord() {
 
 // Polling pour les mises à jour
 function startPolling() {
-    if (data.error && data.expired) {
-        clearInterval(pollInterval);
-        alert('Partie expirée (inactivité)');
-        backToLobby();
-        return;
-    }
     pollInterval = setInterval(async () => {
         try {
             const response = await fetch('/api/game', {
